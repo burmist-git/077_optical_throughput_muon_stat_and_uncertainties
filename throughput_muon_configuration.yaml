@@ -1,0 +1,15 @@
+CalculateThroughputWithMuons:
+    # Required settings
+    # Input url should be pointing to an existing file.
+    # It is recommended to supply it as a CLI argument.
+    # input_url: "muon_0deg_0deg_run000001___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.8.h5"
+
+    # Optional: adjust chunk size to get requires statistical uncertainty
+    chunk_size: 500
+
+    # Optional: use PlainAggregator instead of default SigmaClippingAggregator
+    aggregator_type: "SigmaClippingAggregator"
+
+    SigmaClippingAggregator:
+        max_sigma: 3
+        iterations: 5
