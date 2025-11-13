@@ -26,27 +26,27 @@ from iminuit import Minuit
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-#conf = {
-#    'file': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
-#    'throughputconf': './throughput_muon_configuration.yaml',
-#    'min': 0.1,
-#    'max': 0.3,
-#    'nbins': 100,
-#    'if_fit': True,
-#    'if_out_pdf': True,
-#    'out_pdf': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
-#}
-
 conf = {
-    'file': './data/muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5',
+    'file': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
     'throughputconf': './throughput_muon_configuration.yaml',
     'min': 0.1,
     'max': 0.3,
     'nbins': 100,
     'if_fit': True,
     'if_out_pdf': True,
-    'out_pdf': './data/muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5.pdf',
+    'out_pdf': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
 }
+
+#conf = {
+#    'file': 'muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5',
+#    'throughputconf': './throughput_muon_configuration.yaml',
+#    'min': 0.1,
+#    'max': 0.3,
+#    'nbins': 100,
+#    'if_fit': True,
+#    'if_out_pdf': True,
+#    'out_pdf': 'muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5.pdf',
+#}
 
 
 def get_fit_conf():
