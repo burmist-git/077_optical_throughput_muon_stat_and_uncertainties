@@ -11,5 +11,5 @@ CalculateThroughputWithMuons:
     aggregator_type: "SigmaClippingAggregator"
 
     SigmaClippingAggregator:
-        max_sigma: 3
-        iterations: 5
+        max_sigma: 10
+        iterations: 0

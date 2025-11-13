@@ -26,15 +26,26 @@ from iminuit import Minuit
 from matplotlib.backends.backend_pdf import PdfPages
 
 
+#conf = {
+#    'file': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
+#    'throughputconf': './throughput_muon_configuration.yaml',
+#    'min': 0.1,
+#    'max': 0.3,
+#    'nbins': 100,
+#    'if_fit': True,
+#    'if_out_pdf': True,
+#    'out_pdf': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
+#}
+
 conf = {
-    'file': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
+    'file': './data/muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5',
     'throughputconf': './throughput_muon_configuration.yaml',
     'min': 0.1,
     'max': 0.3,
     'nbins': 100,
     'if_fit': True,
     'if_out_pdf': True,
-    'out_pdf': './data/muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
+    'out_pdf': './data/muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5.pdf',
 }
 
 
@@ -61,6 +72,9 @@ def get_fit_conf():
 
 
 def get_sigma_clip_mean(data, max_sigma, iterations):
+    """Doc. string"""
+
+    #print(len(data))
     return np.ma.mean(
         sigma_clip(data,
                    sigma=max_sigma,
@@ -225,6 +239,8 @@ def loss(x, y):
 
 
 def generate_distribution_from_function( fit_conf, x_min, x_max, n_points): 
+    """Doc. string"""
+
 
     n_bins = 100
     x = np.linspace(x_min, x_max, n_bins)
@@ -232,7 +248,7 @@ def generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     y_max = y.max() 
     y_max = y_max + y_max/10.0
 
-    approximate_generator_efficiency = np.sum(y) / (n_bins-1) / y_max 
+    approximate_generator_efficiency = np.sum(y) / (n_bins-1) / y_max / 2.0
 
     n = int(n_points / approximate_generator_efficiency)
 
@@ -240,10 +256,17 @@ def generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     y_rand = np.random.uniform(0, y_max, n)
     y_rand_x = fit_function_from_conf(fit_conf, x_rand)
 
-    return x_rand[y_rand<y_rand_x] 
+    x_rand = x_rand[y_rand<y_rand_x]
+
+    if len(x_rand) > n_points :
+        return x_rand[:n_points]
+    
+    return x_rand
 
 
 def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
+    """Doc. string"""
+
 
     fig03=plt.figure(figsize=(10, 10))
     plt.hist(
@@ -253,11 +276,34 @@ def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
                          conf['nbins']),
     )
     plt.show()
-    
+
+
+def get_error_estimation( fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
+    """Doc. string"""
+
+
+    current_error_estimation = []
+    for i in np.arange(number_of_trials):
+        current_error_estimation.append(
+            get_sigma_clip_mean(
+                generate_distribution_from_function(
+                    fit_conf,
+                    conf['min'],
+                    conf['max'],
+                    chunk_size,
+                ),
+                max_sigma,
+                iterations,
+            )
+        )
+
+
+    return np.array(current_error_estimation)
+
 
 def main():
     """Doc. string"""
-    
+
     
     #data
     h5file=open_file(conf['file'], "a")
@@ -300,47 +346,47 @@ def main():
         fit_conf = get_fit_conf()
 
 
-    #Estimate the current error
-    current_error_estimation = []
-    for i in np.arange(1000):
-        current_error_estimation.append(
-            get_sigma_clip_mean(
-                generate_distribution_from_function(
-                    fit_conf,
-                    conf['min'],
-                    conf['max'],
-                    chunk_size,
-                ),
-                max_sigma,
-                iterations
-            )
-        )
     #
+    # Estimate the current error
     #
-    current_error_estimation = np.array(current_error_estimation)
-    throughputconf_for_canvas['mean'] = np.mean(current_error_estimation)
-    throughputconf_for_canvas['standard_error_of_the_mean'] = np.std(current_error_estimation)
+    optical_throughput_estimation_current = get_error_estimation(
+        fit_conf,
+        1000,
+        chunk_size,
+        max_sigma,
+        iterations,
+    )
+    throughputconf_for_canvas['mean'] = np.mean(optical_throughput_estimation_current)
+    throughputconf_for_canvas['standard_error_of_the_mean'] = np.std(optical_throughput_estimation_current)
     print("current_error_estimation")
     print("current_error_estimation:  mean = ", throughputconf_for_canvas['mean'])
     print("current_error_estimation:  std  = ", throughputconf_for_canvas['standard_error_of_the_mean'])
 
 
-    
-    #print(
-    #)
-    
-    #print(np.linspace(50, 3000, num=int((3000-50)/50) + 1))
-    #    generate_distribution_from_function(
-    #        fit_conf,
-    #        conf['min'],
-    #        conf['max'],
-    #        int(len(optical_throughput)),
-    #    ),
+    #
+    # Scan the chunk size
+    #
+    chunk_size_arr = np.arange(50, 1001, 50)
+    error_estimation = []
+    mean_estimation = []
+    for chunk_size_i in chunk_size_arr:
+        print("chunk_size : ", chunk_size_i)
+        optical_throughput_estimation = get_error_estimation(
+            fit_conf,
+            1000,
+            chunk_size_i,
+            max_sigma,
+            iterations,
+        )
+        error_estimation.append(np.std(optical_throughput_estimation))
+        mean_estimation.append(np.mean(optical_throughput_estimation))
 
 
-
-    #plot results
         
+    error_estimation = np.array(error_estimation)
+    mean_estimation = np.array(mean_estimation)
+    rel_error_estimation = error_estimation/mean_estimation * 100.0
+    
     x = np.linspace(conf['min'],conf['max'], 10*conf['nbins'])
     y_ini = fit_function_from_conf(get_fit_conf(), x)
     y_fit = fit_function_from_conf(fit_conf, x)
@@ -359,14 +405,15 @@ def main():
             label='data',
         )
         
-        plt.scatter(
-            x,
-            y_ini,
-            alpha=1.0,
-            c='y',
-            s=10,
-            label='initial',
-        )
+        #plt.scatter(
+        #    x,
+        #    y_ini,
+        #    alpha=1.0,
+        #    c='y',
+        #    s=10,
+        #    label='initial',
+        #)
+        
         plt.scatter(
             x,
             y_fit,
@@ -375,8 +422,11 @@ def main():
             s=10,
             label='Fit',
         )
+        plt.axvline(x=(throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
+                    linestyle='--', linewidth=1, label=f'95 % c.l.')
+        plt.axvline(x=(throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
+                    linestyle='--', linewidth=1)
         
-
         plt.legend()
         plt.xlabel('Optical throughput for single muon')
         if conf['if_out_pdf'] :
@@ -389,7 +439,7 @@ def main():
         fig01_meas=plt.figure(figsize=(10, 10))
 
         plt.hist(
-            current_error_estimation, 
+            optical_throughput_estimation_current, 
             bins=30,
             alpha=0.5,
             label='Optical throughput measurements',
@@ -403,6 +453,67 @@ def main():
             plt.show()
         plt.close()
 
+
+        fig01_scan_mean=plt.figure(figsize=(15, 10))
+
+        plt.scatter(
+            chunk_size_arr,
+            mean_estimation,
+            alpha=1.0,
+            c='g',
+            s=10,
+        )
+
+        plt.xlabel('Muon sample size')
+        plt.ylabel('Optical throughput')
+
+        plt.ylim(conf['min'], conf['max'])
+
+        if conf['if_out_pdf'] :
+            pdf.savefig()
+        else:
+            plt.show()
+        plt.close()
+
+        fig01_scan_std=plt.figure(figsize=(15, 10))
+        
+        plt.scatter(
+            chunk_size_arr,
+            error_estimation,
+            alpha=1.0,
+            c='g',
+            s=10,
+        )
+
+        plt.xlabel('Muon sample size')
+        plt.ylabel('Absolute uncertainty of the optical throughput')
+        if conf['if_out_pdf'] :
+            pdf.savefig()
+        else:
+            plt.show()
+        plt.close()
+
+
+
+        fig01_scan_rel=plt.figure(figsize=(15, 10))
+        
+        plt.scatter(
+            chunk_size_arr,
+            rel_error_estimation,
+            alpha=1.0,
+            c='g',
+            s=10,
+        )
+
+        plt.xlabel('Muon sample size')
+        plt.ylabel('Relative uncertainty of the optical throughput')
+        if conf['if_out_pdf'] :
+            pdf.savefig()
+        else:
+            plt.show()
+        plt.close()
+
+        
 
         
         #
