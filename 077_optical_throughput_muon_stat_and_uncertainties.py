@@ -24,18 +24,19 @@ import math
 import yaml
 from iminuit import Minuit
 from matplotlib.backends.backend_pdf import PdfPages
+import argparse
 
 
-conf = {
-    'file': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
-    'throughputconf': './throughput_muon_configuration.yaml',
-    'min': 0.1,
-    'max': 0.3,
-    'nbins': 100,
-    'if_fit': True,
-    'if_out_pdf': True,
-    'out_pdf': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
-}
+#conf = {
+#    'file': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
+#    'throughputconf': './throughput_muon_configuration.yaml',
+#    'min': 0.1,
+#    'max': 0.3,
+#    'nbins': 100,
+#    'if_fit': True,
+#    'if_out_pdf': True,
+#    'out_pdf': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
+#}
 
 #conf = {
 #    'file': 'muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5',
@@ -278,7 +279,7 @@ def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     plt.show()
 
 
-def get_error_estimation( fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
+def get_error_estimation( conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
     """Doc. string"""
 
 
@@ -304,6 +305,27 @@ def get_error_estimation( fit_conf, number_of_trials, chunk_size, max_sigma, ite
 def main():
     """Doc. string"""
 
+
+    parser = argparse.ArgumentParser(
+        description="The script provides an uncertainty estimation for a given configuration of the calibpipe-calculate-throughput-muon tool and the provided data set."
+        f" It also estimates the required statistics to achieve the defined uncertainty."
+    )
+
+    # Add arguments
+    parser.add_argument(
+        "--conf",
+        type=str,
+        required=True,
+        help="Configuration file"
+    )
+
+    
+    # Parse arguments
+    args = parser.parse_args()
+
+    with open(args.conf, 'r') as file:
+        conf = yaml.safe_load(file)
+
     
     #data
     h5file=open_file(conf['file'], "a")
@@ -315,10 +337,11 @@ def main():
     #throughputconf
     with open(conf['throughputconf'], 'r') as file:
         throughputconf = yaml.safe_load(file)
-
-    chunk_size = throughputconf['CalculateThroughputWithMuons']['chunk_size']
-    max_sigma  = throughputconf['CalculateThroughputWithMuons']['SigmaClippingAggregator']['max_sigma']
-    iterations = throughputconf['CalculateThroughputWithMuons']['SigmaClippingAggregator']['iterations']
+    
+        
+    chunk_size = throughputconf['SizeChunking']['chunk_size']
+    max_sigma  = throughputconf['SigmaClippingAggregator']['max_sigma']
+    iterations = throughputconf['SigmaClippingAggregator']['iterations']
 
     throughputconf_for_canvas = {
         'chunk_size': chunk_size,
@@ -327,7 +350,7 @@ def main():
         'mean': np.nan,
         'standard_error_of_the_mean': np.nan,
     }
-
+    
     
     hist_optical_throughput = np.histogram(optical_throughput, 
                                            bins=np.linspace(conf['min'],
@@ -350,6 +373,7 @@ def main():
     # Estimate the current error
     #
     optical_throughput_estimation_current = get_error_estimation(
+        conf,
         fit_conf,
         1000,
         chunk_size,
@@ -372,6 +396,7 @@ def main():
     for chunk_size_i in chunk_size_arr:
         print("chunk_size : ", chunk_size_i)
         optical_throughput_estimation = get_error_estimation(
+            conf,
             fit_conf,
             1000,
             chunk_size_i,
@@ -505,8 +530,8 @@ def main():
             s=10,
         )
 
-        plt.xlabel('Muon sample size')
-        plt.ylabel('Relative uncertainty of the optical throughput')
+        plt.xlabel('Muon sample size', fontsize=20)
+        plt.ylabel('Relative uncertainty of the optical throughput, %', fontsize=20)
         if conf['if_out_pdf'] :
             pdf.savefig()
         else:

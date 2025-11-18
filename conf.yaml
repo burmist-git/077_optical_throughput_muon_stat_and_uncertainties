@@ -1,0 +1,16 @@
+file:
+  "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
+throughputconf:
+  "./throughput_muon_configuration.yaml"
+min:
+  0.1
+max:
+  0.3
+nbins:
+  100
+if_fit:
+  True
+if_out_pdf:
+  True
+out_pdf:
+  'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf'
