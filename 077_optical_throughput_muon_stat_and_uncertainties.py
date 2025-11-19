@@ -27,29 +27,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 import argparse
 
 
-#conf = {
-#    'file': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5',
-#    'throughputconf': './throughput_muon_configuration.yaml',
-#    'min': 0.1,
-#    'max': 0.3,
-#    'nbins': 100,
-#    'if_fit': True,
-#    'if_out_pdf': True,
-#    'out_pdf': 'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf',
-#}
-
-#conf = {
-#    'file': 'muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5',
-#    'throughputconf': './throughput_muon_configuration.yaml',
-#    'min': 0.1,
-#    'max': 0.3,
-#    'nbins': 100,
-#    'if_fit': True,
-#    'if_out_pdf': True,
-#    'out_pdf': 'muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5.pdf',
-#}
-
-
 def get_fit_conf():
     """Doc. string"""
 
@@ -124,6 +101,18 @@ def get_hist_stat(hist_tmp):
     print("std      = ",std)
     print("sum      = ",np.sum(counts))
 
+
+def uncertainty_fit_function(x, A, C, delta):
+    """Doc. string"""
+
+    return A / (np.sqrt(x) + delta) + C
+
+
+def uncertainty_fit_function_inv(x, A, C, delta):
+    """Doc. string"""
+
+    return ( A / (x - C) - delta ) ** 2
+    
 
 def gauss_pedestal(x, A, mu, sigma, pedestal = 0.0):
     """Doc. string"""
@@ -239,6 +228,43 @@ def loss(x, y):
     return loss_function
 
 
+def fit_uncertainty(x, y):
+    """Doc. string"""
+
+    delta_in = 0.001
+    C_in = y[np.argmax(x)]
+    A_in = (y[0] - C_in) * (np.sqrt(x[0]) + delta_in)
+    
+    fit = Minuit(
+        loss_uncertainty_fit_function(x, y),
+        A=A_in,
+        C=C_in,
+        delta=delta_in
+    )
+
+    fit.errordef = Minuit.LEAST_SQUARES
+
+    fit.errors["A"] = 0.1
+    fit.errors["C"] = 0.1
+    fit.errors["delta"] = 0.0
+    fit.fixed["delta"] = True
+
+    fit.migrad()
+
+
+    return fit.values["A"], fit.values["C"], fit.values["delta"] 
+
+
+def loss_uncertainty_fit_function(x, y):
+    """Doc. string"""
+
+    def ff(A, C, delta):
+        diff_squared =  (uncertainty_fit_function(x, A, C, delta) - y) ** 2
+        return diff_squared.sum()
+    
+    return ff 
+    
+
 def generate_distribution_from_function( fit_conf, x_min, x_max, n_points): 
     """Doc. string"""
 
@@ -264,6 +290,9 @@ def generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     
     return x_rand
 
+
+#def generate_distribution_from_data( data, n_points):
+    
 
 def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     """Doc. string"""
@@ -318,6 +347,12 @@ def main():
         required=True,
         help="Configuration file"
     )
+    parser.add_argument(
+        "--rel_err",
+        type=float,
+        default=0.5,
+        help="relative uncertainty in percent",
+    )
 
     
     # Parse arguments
@@ -325,7 +360,7 @@ def main():
 
     with open(args.conf, 'r') as file:
         conf = yaml.safe_load(file)
-
+        
     
     #data
     h5file=open_file(conf['file'], "a")
@@ -382,9 +417,9 @@ def main():
     )
     throughputconf_for_canvas['mean'] = np.mean(optical_throughput_estimation_current)
     throughputconf_for_canvas['standard_error_of_the_mean'] = np.std(optical_throughput_estimation_current)
-    print("current_error_estimation")
-    print("current_error_estimation:  mean = ", throughputconf_for_canvas['mean'])
-    print("current_error_estimation:  std  = ", throughputconf_for_canvas['standard_error_of_the_mean'])
+    #print("current_error_estimation")
+    #print("current_error_estimation:  mean = ", throughputconf_for_canvas['mean'])
+    #print("current_error_estimation:  std  = ", throughputconf_for_canvas['standard_error_of_the_mean'])
 
 
     #
@@ -394,7 +429,7 @@ def main():
     error_estimation = []
     mean_estimation = []
     for chunk_size_i in chunk_size_arr:
-        print("chunk_size : ", chunk_size_i)
+        #print("chunk_size : ", chunk_size_i)
         optical_throughput_estimation = get_error_estimation(
             conf,
             fit_conf,
@@ -411,154 +446,107 @@ def main():
     error_estimation = np.array(error_estimation)
     mean_estimation = np.array(mean_estimation)
     rel_error_estimation = error_estimation/mean_estimation * 100.0
+ 
+    uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta = fit_uncertainty(chunk_size_arr, rel_error_estimation)
+
+    muon_sample_size_arr = np.arange(20, 1001, 1)
+    uncertainty_arr = uncertainty_fit_function(muon_sample_size_arr, uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta)
+
+    estimated_muon_sample_size = uncertainty_fit_function_inv(args.rel_err,uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta)
+    
+    label_uncertainty="Desired uncertainty   : " + str(round(args.rel_err,3));
+    label_sample     ="Estimated muon sample : " + str(round(estimated_muon_sample_size,1));
+
     
     x = np.linspace(conf['min'],conf['max'], 10*conf['nbins'])
     y_ini = fit_function_from_conf(get_fit_conf(), x)
     y_fit = fit_function_from_conf(fit_conf, x)
 
+    label_uncertainty_str  ='      A : ' + str(round(uncertainty_fit_A, 3))
+    label_uncertainty_str +='\n      C : ' + str(round(uncertainty_fit_C, 3))
+    label_uncertainty_str +='\n delta : ' + str(round(uncertainty_fit_delta, 4))
     
     with PdfPages(conf['out_pdf']) as pdf:
 
-        fig01=plt.figure(figsize=(10, 10))
+        fig01_scan_rel=plt.figure(figsize=(15, 10))       
+        plt.title(r"$\mathrm{uncertainty} = \frac{A}{\sqrt{\mathrm{muon~sample~size}} + \mathrm{delta}} + C$", fontsize=30)
+        plt.grid(True, which='both', linestyle='--', alpha=0.5)
+        plt.scatter(
+            chunk_size_arr,
+            rel_error_estimation,
+            alpha=1.0,
+            c='g',
+            s=100,
+        )
+        plt.plot(
+            muon_sample_size_arr,
+            uncertainty_arr,
+            alpha=0.5,
+            linestyle='-',
+            linewidth=2,
+            c='r',
+            label=label_uncertainty_str
+        )
+        plt.axhline(y=args.rel_err,
+                    linestyle='-', linewidth=2, color='black', label=label_uncertainty)
+        plt.axvline(x=estimated_muon_sample_size,
+                    linestyle='--', linewidth=2, color='black', label=label_sample)
+        plt.xlabel('Muon sample size', fontsize=20)
+        plt.ylabel('Relative uncertainty of the optical throughput, %', fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+        plt.legend(fontsize=20)
+        pdf.savefig()
+        plt.close()
 
+        
+        fig01=plt.figure(figsize=(15, 10))        
         plt.hist(
             optical_throughput, 
             bins=np.linspace(conf['min'],
                              conf['max'],
                              conf['nbins']),
-            alpha=0.5,
-            label='data',
-        )
-        
-        #plt.scatter(
-        #    x,
-        #    y_ini,
-        #    alpha=1.0,
-        #    c='y',
-        #    s=10,
-        #    label='initial',
-        #)
-        
+            alpha=0.3,
+            hatch='',
+            edgecolor='black',
+            label='data/simulation',
+        )        
         plt.scatter(
             x,
             y_fit,
             alpha=1.0,
             c='g',
             s=10,
-            label='Fit',
-        )
+            label='PDF from the fit',
+        )        
+        label_str = 'Throughput measurements'
+        label_str +='\n Muon sample size: ' + str(throughputconf_for_canvas['chunk_size'])
+        label_str +='\n sigma: ' + str(throughputconf_for_canvas['max_sigma'])
+        label_str +='\n iterations: ' + str(throughputconf_for_canvas['iterations'])
+        label_str +='\n mean: ' + str(round(throughputconf_for_canvas['mean'], 3))
+        label_str +='\n std: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean'],5))
+        #
         plt.axvline(x=(throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
-                    linestyle='--', linewidth=1, label=f'95 % c.l.')
+                    linestyle='--', linewidth=2, color='black', label=label_str)
         plt.axvline(x=(throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
-                    linestyle='--', linewidth=1)
-        
-        plt.legend()
-        plt.xlabel('Optical throughput for single muon')
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-
-
-        fig01_meas=plt.figure(figsize=(10, 10))
-
-        plt.hist(
-            optical_throughput_estimation_current, 
-            bins=30,
-            alpha=0.5,
-            label='Optical throughput measurements',
-        )
-
-        plt.legend()
-        plt.xlabel('Optical throughput measurements')
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-
-
-        fig01_scan_mean=plt.figure(figsize=(15, 10))
-
-        plt.scatter(
-            chunk_size_arr,
-            mean_estimation,
-            alpha=1.0,
-            c='g',
-            s=10,
-        )
-
-        plt.xlabel('Muon sample size')
-        plt.ylabel('Optical throughput')
-
-        plt.ylim(conf['min'], conf['max'])
-
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-
-        fig01_scan_std=plt.figure(figsize=(15, 10))
-        
-        plt.scatter(
-            chunk_size_arr,
-            error_estimation,
-            alpha=1.0,
-            c='g',
-            s=10,
-        )
-
-        plt.xlabel('Muon sample size')
-        plt.ylabel('Absolute uncertainty of the optical throughput')
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-
-
-
-        fig01_scan_rel=plt.figure(figsize=(15, 10))
-        
-        plt.scatter(
-            chunk_size_arr,
-            rel_error_estimation,
-            alpha=1.0,
-            c='g',
-            s=10,
-        )
-
-        plt.xlabel('Muon sample size', fontsize=20)
-        plt.ylabel('Relative uncertainty of the optical throughput, %', fontsize=20)
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-
-        
-
-        
+                    linestyle='--', linewidth=2, color='black')
+        plt.axvspan((throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
+                    (throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
+                    color='red',
+                    alpha=0.5,
+                    hatch='//',
+                    edgecolor='black',
+                    label="95%c.l.")
         #
-        fig02=plt.figure(figsize=(15, 5))
-        fig02=print_conf_to_canvas(conf, fig02)
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
+        plt.legend(fontsize=20)
+        plt.xlabel('Optical throughput for individual muon', fontsize=18)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+        pdf.savefig()
         plt.close()
-        
-        #
-        fig03=plt.figure(figsize=(15, 5))
-        fig03=print_conf_to_canvas(throughputconf_for_canvas, fig03)
-        if conf['if_out_pdf'] :
-            pdf.savefig()
-        else:
-            plt.show()
-        plt.close()
-     
+
+
+
 
 if __name__ == "__main__":
     main()

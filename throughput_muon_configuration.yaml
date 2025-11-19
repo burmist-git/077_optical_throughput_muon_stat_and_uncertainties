@@ -9,8 +9,8 @@ CalculateThroughputWithMuons:
 
 SigmaClippingAggregator:
     chunking_type: SizeChunking
-    max_sigma: 3
-    iterations: 5
+    max_sigma: 10
+    iterations: 0
 # Optional: adjust chunk size to get requires statistical uncertainty
 SizeChunking:
     chunk_size: 500

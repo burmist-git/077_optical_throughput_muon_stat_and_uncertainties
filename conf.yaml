@@ -1,11 +1,16 @@
+# Input file with the recorded single muon throughput.
 file:
   "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
+# Configuration file for throughput measurements.
 throughputconf:
   "./throughput_muon_configuration.yaml"
+# Minimum range value of the throughput with a single muon (histogram).
 min:
   0.1
+# Maximum range value of the throughput with a single muon (histogram).
 max:
   0.3
+# Number of bins for the throughput histogram.
 nbins:
   100
 if_fit:
