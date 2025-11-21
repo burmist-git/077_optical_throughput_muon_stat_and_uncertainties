@@ -231,8 +231,10 @@ def loss(x, y):
 def fit_uncertainty(x, y):
     """Doc. string"""
 
-    delta_in = 0.001
-    C_in = y[np.argmax(x)]
+    #delta_in = 0.001
+    delta_in = 0.0
+    #C_in = y[np.argmax(x)]
+    C_in = 0.0
     A_in = (y[0] - C_in) * (np.sqrt(x[0]) + delta_in)
     
     fit = Minuit(
@@ -246,8 +248,9 @@ def fit_uncertainty(x, y):
 
     fit.errors["A"] = 0.1
     fit.errors["C"] = 0.1
-    fit.errors["delta"] = 0.0
-    fit.fixed["delta"] = True
+    fit.errors["delta"] = 0.01
+    fit.fixed["delta"] = False
+    fit.fixed["C"] = False
 
     fit.migrad()
 
@@ -291,8 +294,27 @@ def generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     return x_rand
 
 
-#def generate_distribution_from_data( data, n_points):
+def generate_distribution_from_data_inf_stat( data, n_points):
+    """Doc. string"""
+
     
+    return np.random.choice(data, size=n_points, replace=False)
+
+
+def generate_distribution_from_data( data, n_points):
+    """Doc. string"""
+
+    
+    assert len(data)>=n_points
+    assert n_points > 0
+    
+    n_times = np.floor_divide(len(data), n_points)
+    n_points_cut = len(data) - n_times*n_points
+    remove_idx = np.random.choice(len(data), size=n_points_cut, replace=False)
+    data_norm_size = np.delete(data, remove_idx)
+
+    return data_norm_size.reshape(n_times, n_points)
+
 
 def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     """Doc. string"""
@@ -308,25 +330,47 @@ def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     plt.show()
 
 
-def get_error_estimation( conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
+def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
     """Doc. string"""
 
-
-    current_error_estimation = []
-    for i in np.arange(number_of_trials):
-        current_error_estimation.append(
-            get_sigma_clip_mean(
-                generate_distribution_from_function(
-                    fit_conf,
-                    conf['min'],
-                    conf['max'],
-                    chunk_size,
-                ),
-                max_sigma,
-                iterations,
+    if conf['if_sample_pdf']:    
+        current_error_estimation = []
+        for i in np.arange(number_of_trials):
+            current_error_estimation.append(
+                get_sigma_clip_mean(
+                    generate_distribution_from_function(
+                        fit_conf,
+                        conf['min'],
+                        conf['max'],
+                        chunk_size,
+                    ),
+                    max_sigma,
+                    iterations,
+                )
             )
-        )
-
+    else:
+        if conf['if_assume_assume_infinite_statistics']:
+            current_error_estimation = []
+            for i in np.arange(number_of_trials):
+                current_error_estimation.append(
+                    get_sigma_clip_mean(
+                        generate_distribution_from_data_inf_stat( optical_throughput, chunk_size),
+                        max_sigma,
+                        iterations,
+                    )
+                )
+        else:
+            sample = generate_distribution_from_data( optical_throughput, chunk_size)
+            number_of_trials_form_sample = sample.shape[0]
+            current_error_estimation = []
+            for i in np.arange(number_of_trials_form_sample):
+                current_error_estimation.append(
+                    get_sigma_clip_mean(
+                        sample[i,:],
+                        max_sigma,
+                        iterations,
+                    )
+                )
 
     return np.array(current_error_estimation)
 
@@ -408,6 +452,7 @@ def main():
     # Estimate the current error
     #
     optical_throughput_estimation_current = get_error_estimation(
+        optical_throughput,
         conf,
         fit_conf,
         1000,
@@ -431,6 +476,7 @@ def main():
     for chunk_size_i in chunk_size_arr:
         #print("chunk_size : ", chunk_size_i)
         optical_throughput_estimation = get_error_estimation(
+            optical_throughput,
             conf,
             fit_conf,
             1000,
@@ -469,8 +515,10 @@ def main():
     with PdfPages(conf['out_pdf']) as pdf:
 
         fig01_scan_rel=plt.figure(figsize=(15, 10))       
-        plt.title(r"$\mathrm{uncertainty} = \frac{A}{\sqrt{\mathrm{muon~sample~size}} + \mathrm{delta}} + C$", fontsize=30)
+        #plt.title(r"$\mathrm{uncertainty} = \frac{A}{\sqrt{\mathrm{muon~sample~size}} + \mathrm{delta}} + C$", fontsize=30)
+        plt.title(r"$\mathrm{err} = \frac{A}{\sqrt{\mathrm{N_{muon}}} + \mathrm{delta}} + C; \mathrm{N_{muon}} = (\frac{A}{\mathrm{err} - C} - \mathrm{delta})^{2} $", fontsize=30)
         plt.grid(True, which='both', linestyle='--', alpha=0.5)
+        plt.ylim(conf['rel_uncertainty_range_min'], conf['rel_uncertainty_range_max'])
         plt.scatter(
             chunk_size_arr,
             rel_error_estimation,
@@ -525,6 +573,8 @@ def main():
         label_str +='\n iterations: ' + str(throughputconf_for_canvas['iterations'])
         label_str +='\n mean: ' + str(round(throughputconf_for_canvas['mean'], 3))
         label_str +='\n std: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean'],5))
+        label_str +='\n rel. err.: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean']/throughputconf_for_canvas['mean']*100,3))
+        label_str +=' %'
         #
         plt.axvline(x=(throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
                     linestyle='--', linewidth=2, color='black', label=label_str)
