@@ -383,6 +383,11 @@ def main():
     parser = argparse.ArgumentParser(
         description="The script provides an uncertainty estimation for a given configuration of the calibpipe-calculate-throughput-muon tool and the provided data set."
         f" It also estimates the required statistics to achieve the defined uncertainty."
+        f" The script generates an output PDF file."
+        f" The first page plots uncertainty versus muon sample size, with horizontal and vertical lines showing the desired uncertainty and the required muon sample size, respectively."
+        f" The second page shows the optical throughput distribution for a single measurement available in the input file, along with the 95 percent confidence"
+        f" level of the optical throughput calculated using the calibpipe-calculate-throughput-muon tool."
+        f" Its configuration is described in the YAML file (e.g., throughput_muon_configuration.yaml)."
     )
 
     # Add arguments
