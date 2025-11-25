@@ -19,11 +19,16 @@ rel_uncertainty_range_min:
 # Plotting range for the relative uncertainty of the optical throughput in %, max value
 rel_uncertainty_range_max:
   3.0
+# In case the user decides to use the PDF for sampling (preferable option for a small number of events (<10^6 events)).
 if_sample_pdf:
+  True
+# Use the input file and sample from it, assuming infinite statistics.
+# In case of false, finite trials are possible until all the events from the files are used.
+if_assume_infinite_statistics:
   False
-if_assume_assume_infinite_statistics:
-  False
+# If the user wants to fit the optical throughput to obtain the PDF function for sampling.
 if_fit:
   True
+# Name of the output PDF file containing the results
 out_pdf:
   'muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf'

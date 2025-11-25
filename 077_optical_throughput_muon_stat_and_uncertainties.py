@@ -28,7 +28,7 @@ import argparse
 
 
 def get_fit_conf():
-    """Doc. string"""
+    """Return a dictionary with the seed parameter for PDF fitting using three Gaussians."""
 
     fit_conf = {
         'gauss_a_if_fix': False,
@@ -50,9 +50,9 @@ def get_fit_conf():
 
 
 def get_sigma_clip_mean(data, max_sigma, iterations):
-    """Doc. string"""
+    """Calculates and returns the mean of the sigma-clipped data"""
 
-    #print(len(data))
+
     return np.ma.mean(
         sigma_clip(data,
                    sigma=max_sigma,
@@ -65,7 +65,7 @@ def get_sigma_clip_mean(data, max_sigma, iterations):
 
 
 def print_conf_to_canvas(conf, fig):
-    """Doc. string"""
+    """Print configuration to figure (not used)"""
 
 
     figure=fig
@@ -80,7 +80,7 @@ def print_conf_to_canvas(conf, fig):
 
 
 def get_hist_stat(hist_tmp):
-    """Doc. string"""
+    """Calculates and returns the histogram stat."""
 
 
     counts = hist_tmp[0]
@@ -101,28 +101,30 @@ def get_hist_stat(hist_tmp):
     print("std      = ",std)
     print("sum      = ",np.sum(counts))
 
+    return mean, std, np.sum(counts)
 
+    
 def uncertainty_fit_function(x, A, C, delta):
-    """Doc. string"""
+    """Uncertainty parameterization function."""
 
     return A / (np.sqrt(x) + delta) + C
 
 
 def uncertainty_fit_function_inv(x, A, C, delta):
-    """Doc. string"""
+    """Uncertainty parameterization invers function."""
 
     return ( A / (x - C) - delta ) ** 2
     
 
 def gauss_pedestal(x, A, mu, sigma, pedestal = 0.0):
-    """Doc. string"""
+    """Gaussian function with a pedestal."""
 
 
     return A * np.exp(-0.5 * ((x - mu) / sigma) ** 2) + pedestal
 
 
 def fit_function(x, A1, mu1, sigma1, A2, mu2, sigma2, A3, mu3, sigma3, pedestal):
-    """Doc. string"""
+    """Sum of Gaussians (used to fit PDF)"""
 
 
     return (
@@ -133,7 +135,7 @@ def fit_function(x, A1, mu1, sigma1, A2, mu2, sigma2, A3, mu3, sigma3, pedestal)
 
 
 def fit_function_from_conf(conf, x):
-    """Doc. string"""
+    """Returns a sum-of-Gaussians fit function with parameters from the configuration dictionary."""
 
 
     return fit_function(x, 
@@ -150,7 +152,7 @@ def fit_function_from_conf(conf, x):
 
 
 def fit_optical_throughput(optical_throughput_x, optical_throughput_y, fit_conf):
-    """Doc. string"""
+    """Minuit-based fit function for fitting the optical throughput PDF."""
 
     
     fit = Minuit(
@@ -215,7 +217,7 @@ def fit_optical_throughput(optical_throughput_x, optical_throughput_y, fit_conf)
 
 
 def loss(x, y):
-    """Doc. string"""
+    """Loss function for fitting the optical throughput PDF"""
 
     
     def loss_function(A1, mu1, sigma1, A2, mu2, sigma2, A3, mu3, sigma3, pedestal):
@@ -229,13 +231,11 @@ def loss(x, y):
 
 
 def fit_uncertainty(x, y):
-    """Doc. string"""
+    """Minuit-based fit function for fitting the optical throughput uncertainty."""
 
-    #delta_in = 0.001
     delta_in = 0.0
-    #C_in = y[np.argmax(x)]
     C_in = 0.0
-    A_in = (y[0] - C_in) * (np.sqrt(x[0]) + delta_in)
+    A_in = (y[4] - C_in) * (np.sqrt(x[4]) + delta_in)
     
     fit = Minuit(
         loss_uncertainty_fit_function(x, y),
@@ -248,9 +248,9 @@ def fit_uncertainty(x, y):
 
     fit.errors["A"] = 0.1
     fit.errors["C"] = 0.1
-    fit.errors["delta"] = 0.01
-    fit.fixed["delta"] = False
-    fit.fixed["C"] = False
+    fit.errors["delta"] = 0.1
+    fit.fixed["delta"] = True
+    fit.fixed["C"] = True
 
     fit.migrad()
 
@@ -259,7 +259,7 @@ def fit_uncertainty(x, y):
 
 
 def loss_uncertainty_fit_function(x, y):
-    """Doc. string"""
+    """Loss function for fitting the optical throughput uncertainty."""
 
     def ff(A, C, delta):
         diff_squared =  (uncertainty_fit_function(x, A, C, delta) - y) ** 2
@@ -269,7 +269,7 @@ def loss_uncertainty_fit_function(x, y):
     
 
 def generate_distribution_from_function( fit_conf, x_min, x_max, n_points): 
-    """Doc. string"""
+    """Generate a statistical distribution using the PDF function."""
 
 
     n_bins = 100
@@ -294,30 +294,8 @@ def generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     return x_rand
 
 
-def generate_distribution_from_data_inf_stat( data, n_points):
-    """Doc. string"""
-
-    
-    return np.random.choice(data, size=n_points, replace=False)
-
-
-def generate_distribution_from_data( data, n_points):
-    """Doc. string"""
-
-    
-    assert len(data)>=n_points
-    assert n_points > 0
-    
-    n_times = np.floor_divide(len(data), n_points)
-    n_points_cut = len(data) - n_times*n_points
-    remove_idx = np.random.choice(len(data), size=n_points_cut, replace=False)
-    data_norm_size = np.delete(data, remove_idx)
-
-    return data_norm_size.reshape(n_times, n_points)
-
-
 def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
-    """Doc. string"""
+    """Test for generate_distribution_from_function function."""
 
 
     fig03=plt.figure(figsize=(10, 10))
@@ -330,8 +308,31 @@ def test_generate_distribution_from_function( fit_conf, x_min, x_max, n_points):
     plt.show()
 
 
+def generate_distribution_from_data_inf_stat( data, n_points):
+    """Generate a distribution from a data-defined PDF without fitting."""
+
+    
+    return np.random.choice(data, size=n_points, replace=False)
+
+
+def generate_distribution_from_data( data, n_points):
+    """Generate a statistical distribution by pulling the values from the available data set. The number of samples is defined by the length of the input data."""
+
+
+    assert len(data)>=n_points
+    assert n_points > 0
+    
+    n_times = np.floor_divide(len(data), n_points)
+    n_points_cut = len(data) - n_times*n_points
+    remove_idx = np.random.choice(len(data), size=n_points_cut, replace=False)
+    data_norm_size = np.delete(data, remove_idx)
+
+    return data_norm_size.reshape(n_times, n_points)
+
+
+
 def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
-    """Doc. string"""
+    """Function that estimates the uncertainty for a given sigma-clipping configuration."""
 
     if conf['if_sample_pdf']:    
         current_error_estimation = []
@@ -349,7 +350,7 @@ def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, 
                 )
             )
     else:
-        if conf['if_assume_assume_infinite_statistics']:
+        if conf['if_assume_infinite_statistics']:
             current_error_estimation = []
             for i in np.arange(number_of_trials):
                 current_error_estimation.append(
@@ -376,7 +377,7 @@ def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, 
 
 
 def main():
-    """Doc. string"""
+    """Main program"""
 
 
     parser = argparse.ArgumentParser(
@@ -394,8 +395,8 @@ def main():
     parser.add_argument(
         "--rel_err",
         type=float,
-        default=0.5,
-        help="relative uncertainty in percent",
+        default=1.0,
+        help="relative uncertainty in percent (default : 1.0)",
     )
 
     
@@ -462,9 +463,6 @@ def main():
     )
     throughputconf_for_canvas['mean'] = np.mean(optical_throughput_estimation_current)
     throughputconf_for_canvas['standard_error_of_the_mean'] = np.std(optical_throughput_estimation_current)
-    #print("current_error_estimation")
-    #print("current_error_estimation:  mean = ", throughputconf_for_canvas['mean'])
-    #print("current_error_estimation:  std  = ", throughputconf_for_canvas['standard_error_of_the_mean'])
 
 
     #
@@ -474,7 +472,6 @@ def main():
     error_estimation = []
     mean_estimation = []
     for chunk_size_i in chunk_size_arr:
-        #print("chunk_size : ", chunk_size_i)
         optical_throughput_estimation = get_error_estimation(
             optical_throughput,
             conf,
@@ -488,11 +485,11 @@ def main():
         mean_estimation.append(np.mean(optical_throughput_estimation))
 
 
-        
     error_estimation = np.array(error_estimation)
     mean_estimation = np.array(mean_estimation)
     rel_error_estimation = error_estimation/mean_estimation * 100.0
- 
+
+    
     uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta = fit_uncertainty(chunk_size_arr, rel_error_estimation)
 
     muon_sample_size_arr = np.arange(20, 1001, 1)
@@ -594,8 +591,6 @@ def main():
         plt.yticks(fontsize=18)
         pdf.savefig()
         plt.close()
-
-
 
 
 if __name__ == "__main__":
