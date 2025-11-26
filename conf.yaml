@@ -1,10 +1,7 @@
 # Input file with the recorded single muon throughput.
 file:
-  "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
-#file:
-#  "muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5"
-#file:
-#  "/home/burmist/.cache/ctapipe/minio-cta.zeuthen.desy.de/dpps-testdata-public/data/calibpipe-test-data/muon-test-data/muon+_0deg_0deg_run000002___cta-prod6-2147m-Paranal-mst-fc-dark-ref-degraded-0.83.h5"
+  - "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
+  - "muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5"
 # Configuration file for throughput measurements.
 throughputconf:
   "./throughput_muon_configuration.yaml"
@@ -33,10 +30,3 @@ if_assume_infinite_statistics:
 # If the user wants to fit the optical throughput to obtain the PDF function for sampling.
 if_fit:
   True
-# Name of the output PDF file containing the results
-out_pdf:
-  "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5.pdf"
-#out_pdf:
-#  "muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5.pdf"
-#out_pdf:
-#  "muon+_0deg_0deg_run000002___cta-prod6-2147m-Paranal-mst-fc-dark-ref-degraded-0.83.h5.pdf"

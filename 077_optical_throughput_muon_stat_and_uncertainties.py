@@ -53,7 +53,7 @@ def get_sigma_clip_mean(data, max_sigma, iterations):
     """Calculates and returns the mean of the sigma-clipped data"""
 
 
-    return np.ma.mean(
+    return np.ma.median(
         sigma_clip(data,
                    sigma=max_sigma,
                    maxiters=iterations,
@@ -330,7 +330,6 @@ def generate_distribution_from_data( data, n_points):
     return data_norm_size.reshape(n_times, n_points)
 
 
-
 def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
     """Function that estimates the uncertainty for a given sigma-clipping configuration."""
 
@@ -376,42 +375,10 @@ def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, 
     return np.array(current_error_estimation)
 
 
-def main():
-    """Main program"""
-
-
-    parser = argparse.ArgumentParser(
-        description="The script provides an uncertainty estimation for a given configuration of the calibpipe-calculate-throughput-muon tool and the provided data set."
-        f" It also estimates the required statistics to achieve the defined uncertainty."
-        f" The script generates an output PDF file."
-        f" The first page plots uncertainty versus muon sample size, with horizontal and vertical lines showing the desired uncertainty and the required muon sample size, respectively."
-        f" The second page shows the optical throughput distribution for a single measurement available in the input file, along with the 95 percent confidence"
-        f" level of the optical throughput calculated using the calibpipe-calculate-throughput-muon tool."
-        f" Its configuration is described in the YAML file (e.g., throughput_muon_configuration.yaml)."
-    )
-
-    # Add arguments
-    parser.add_argument(
-        "--conf",
-        type=str,
-        required=True,
-        help="Configuration file"
-    )
-    parser.add_argument(
-        "--rel_err",
-        type=float,
-        default=1.0,
-        help="relative uncertainty in percent (default : 1.0)",
-    )
-
+def analyze(conf, rel_err):
+    """analyze one file"""
     
-    # Parse arguments
-    args = parser.parse_args()
 
-    with open(args.conf, 'r') as file:
-        conf = yaml.safe_load(file)
-        
-    
     #data
     h5file=open_file(conf['file'], "a")
     df = pd.DataFrame(h5file.root.dl1.event.telescope.muon.tel_001[:])
@@ -500,9 +467,9 @@ def main():
     muon_sample_size_arr = np.arange(20, 1001, 1)
     uncertainty_arr = uncertainty_fit_function(muon_sample_size_arr, uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta)
 
-    estimated_muon_sample_size = uncertainty_fit_function_inv(args.rel_err,uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta)
+    estimated_muon_sample_size = uncertainty_fit_function_inv(rel_err,uncertainty_fit_A, uncertainty_fit_C, uncertainty_fit_delta)
     
-    label_uncertainty="Desired uncertainty   : " + str(round(args.rel_err,3));
+    label_uncertainty="Desired uncertainty   : " + str(round(rel_err,3));
     label_sample     ="Estimated muon sample : " + str(round(estimated_muon_sample_size,1));
 
     
@@ -514,21 +481,25 @@ def main():
     label_uncertainty_str +='\n      C : ' + str(round(uncertainty_fit_C, 3))
     label_uncertainty_str +='\n delta : ' + str(round(uncertainty_fit_delta, 4))
     
-    with PdfPages(conf['out_pdf']) as pdf:
+    with PdfPages(str(conf['file'] + str(".pdf"))) as pdf:
 
-        fig01_scan_rel=plt.figure(figsize=(15, 10))       
-        #plt.title(r"$\mathrm{uncertainty} = \frac{A}{\sqrt{\mathrm{muon~sample~size}} + \mathrm{delta}} + C$", fontsize=30)
-        plt.title(r"$\mathrm{err} = \frac{A}{\sqrt{\mathrm{N_{muon}}} + \mathrm{delta}} + C; \mathrm{N_{muon}} = (\frac{A}{\mathrm{err} - C} - \mathrm{delta})^{2} $", fontsize=30)
-        plt.grid(True, which='both', linestyle='--', alpha=0.5)
-        plt.ylim(conf['rel_uncertainty_range_min'], conf['rel_uncertainty_range_max'])
-        plt.scatter(
+        fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+
+        plt.tight_layout(pad=3.5)
+        
+        #fig01_scan_rel=plt.figure(figsize=(15, 10))
+
+        axes[0].set_title(r"$\mathrm{err} = \frac{A}{\sqrt{\mathrm{N_{muon}}} + \mathrm{delta}} + C; \mathrm{N_{muon}} = (\frac{A}{\mathrm{err} - C} - \mathrm{delta})^{2} $", fontsize=20)
+        axes[0].grid(True, which='both', linestyle='--', alpha=0.5)
+        axes[0].set_ylim(conf['rel_uncertainty_range_min'], conf['rel_uncertainty_range_max'])
+        axes[0].scatter(
             chunk_size_arr,
             rel_error_estimation,
             alpha=1.0,
             c='g',
             s=100,
         )
-        plt.plot(
+        axes[0].plot(
             muon_sample_size_arr,
             uncertainty_arr,
             alpha=0.5,
@@ -537,21 +508,21 @@ def main():
             c='r',
             label=label_uncertainty_str
         )
-        plt.axhline(y=args.rel_err,
+        axes[0].axhline(y=rel_err,
                     linestyle='-', linewidth=2, color='black', label=label_uncertainty)
-        plt.axvline(x=estimated_muon_sample_size,
+        axes[0].axvline(x=estimated_muon_sample_size,
                     linestyle='--', linewidth=2, color='black', label=label_sample)
-        plt.xlabel('Muon sample size', fontsize=20)
-        plt.ylabel('Relative uncertainty of the optical throughput, %', fontsize=20)
-        plt.xticks(fontsize=18)
-        plt.yticks(fontsize=18)
-        plt.legend(fontsize=20)
-        pdf.savefig()
-        plt.close()
+        axes[0].set_xlabel('Muon sample size', fontsize=13)
+        axes[0].set_ylabel('Relative uncertainty of the optical throughput, %', fontsize=13)
+        axes[0].tick_params(axis='x', labelsize=13)
+        axes[0].tick_params(axis='y', labelsize=13)
+        axes[0].legend(fontsize=13)
+        #pdf.savefig()
+        #plt.close()
 
         
-        fig01=plt.figure(figsize=(15, 10))        
-        plt.hist(
+        #fig01=plt.figure(figsize=(15, 10))        
+        axes[1].hist(
             optical_throughput, 
             bins=np.linspace(conf['min'],
                              conf['max'],
@@ -561,7 +532,7 @@ def main():
             edgecolor='black',
             label='data/simulation',
         )        
-        plt.scatter(
+        axes[1].scatter(
             x,
             y_fit,
             alpha=1.0,
@@ -578,24 +549,68 @@ def main():
         label_str +='\n rel. err.: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean']/throughputconf_for_canvas['mean']*100,3))
         label_str +=' %'
         #
-        plt.axvline(x=(throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
+        axes[1].axvline(x=(throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
                     linestyle='--', linewidth=2, color='black', label=label_str)
-        plt.axvline(x=(throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
+        axes[1].axvline(x=(throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
                     linestyle='--', linewidth=2, color='black')
-        plt.axvspan((throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
+        axes[1].axvspan((throughputconf_for_canvas['mean']-2*throughputconf_for_canvas['standard_error_of_the_mean']),
                     (throughputconf_for_canvas['mean']+2*throughputconf_for_canvas['standard_error_of_the_mean']),
-                    color='red',
+                    facecolor='red',
                     alpha=0.5,
                     hatch='//',
                     edgecolor='black',
                     label="95%c.l.")
         #
-        plt.legend(fontsize=20)
-        plt.xlabel('Optical throughput for individual muon', fontsize=18)
-        plt.xticks(fontsize=18)
-        plt.yticks(fontsize=18)
+        axes[1].legend(fontsize=13)
+        axes[1].set_xlabel('Optical throughput for individual muon', fontsize=13)
+        axes[1].tick_params(axis='x', labelsize=13)
+        axes[1].tick_params(axis='y', labelsize=13)
         pdf.savefig()
         plt.close()
+
+    h5file.close()
+
+
+def main():
+    """Main program"""
+
+
+    parser = argparse.ArgumentParser(
+        description="The script provides an uncertainty estimation for a given configuration of the calibpipe-calculate-throughput-muon tool and the provided data set."
+        f" It also estimates the required statistics to achieve the defined uncertainty."
+        f" The script generates an output PDF file."
+        f" The first page plots uncertainty versus muon sample size, with horizontal and vertical lines showing the desired uncertainty and the required muon sample size, respectively."
+        f" The second page shows the optical throughput distribution for a single measurement available in the input file, along with the 95 percent confidence"
+        f" level of the optical throughput calculated using the calibpipe-calculate-throughput-muon tool."
+        f" Its configuration is described in the YAML file (e.g., throughput_muon_configuration.yaml)."
+    )
+
+    # Add arguments
+    parser.add_argument(
+        "--conf",
+        type=str,
+        required=True,
+        help="Configuration file"
+    )
+    parser.add_argument(
+        "--rel_err",
+        type=float,
+        default=1.0,
+        help="relative uncertainty in percent (default : 1.0)",
+    )
+
+    
+    # Parse arguments
+    args = parser.parse_args()
+
+    with open(args.conf, 'r') as file:
+        conf = yaml.safe_load(file)
+        
+    file_list = list(conf['file'])
+
+    for the_file in conf['file']:
+        conf['file'] = the_file
+        analyze(conf, args.rel_err)
 
 
 if __name__ == "__main__":
