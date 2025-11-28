@@ -609,6 +609,7 @@ def main():
     file_list = list(conf['file'])
 
     for the_file in conf['file']:
+        print(the_file)
         conf['file'] = the_file
         analyze(conf, args.rel_err)
 

@@ -2,6 +2,7 @@
 file:
   - "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
   - "muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5"
+  - "muon+_0deg_0deg_run000011___cta-prod6-2156m-LaPalma-mst-fc-dark-ref-degraded-0.83.h5"
 # Configuration file for throughput measurements.
 throughputconf:
   "./throughput_muon_configuration.yaml"
