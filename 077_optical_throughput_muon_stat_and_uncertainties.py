@@ -25,58 +25,99 @@ import yaml
 from iminuit import Minuit
 from matplotlib.backends.backend_pdf import PdfPages
 import argparse
+from scipy.stats import skew
+from scipy.stats import kurtosis
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import json
+import copy
 
-
-def get_fit_conf():
+def get_fit_conf(conf=None):
     """Return a dictionary with the seed parameter for PDF fitting using three Gaussians."""
 
-    fit_conf = {
-        'gauss_a_if_fix': False,
-        'gauss_a_ampl': 500,
-        'gauss_a_x0': 0.175,
-        'gauss_a_sig': 0.01,
-        'gauss_b_if_fix': False,
-        'gauss_b_ampl': 200,
-        'gauss_b_x0': 0.18,
-        'gauss_b_sig': 0.02,
-        'gauss_c_if_fix': False,
-        'gauss_c_ampl': 30,
-        'gauss_c_x0': 0.15,
-        'gauss_c_sig': 0.007,
-        'pedestal': 0.0,
-    }
-    
-    return fit_conf
+
+    if conf==None:
+        fit_conf = {
+            'initial': True,
+            'gauss_a_if_fix': False,
+            'gauss_a_ampl': 500,
+            'gauss_a_x0': 0.175,
+            'gauss_a_sig': 0.01,
+            'gauss_b_if_fix': False,
+            'gauss_b_ampl': 200,
+            'gauss_b_x0': 0.18,
+            'gauss_b_sig': 0.02,
+            'gauss_c_if_fix': False,
+            'gauss_c_ampl': 30,
+            'gauss_c_x0': 0.15,
+            'gauss_c_sig': 0.007,
+            'pedestal': 0.0,
+        }
+        return fit_conf
+    else:
+        if conf['pdf_fitting_seed_file'] == None:
+            return get_fit_conf(None)
+        else:
+            with open(conf['pdf_fitting_seed_file'], 'r') as file:
+                iniconf = yaml.safe_load(file)
+
+            return iniconf
+
+    return get_fit_conf(None)
 
 
-def get_sigma_clip_mean(data, max_sigma, iterations):
-    """Calculates and returns the mean of the sigma-clipped data"""
+def get_sigma_clip_mean(data, max_sigma, iterations, if_median=False):
+    """Calculates and returns the mean/median of the sigma-clipped data"""
+
+    sc = sigma_clip(
+          data,
+          sigma=max_sigma,
+          maxiters=iterations,
+          cenfunc="mean",
+          axis=0,
+        )
+
+    if if_median :
+        return np.ma.median(sc)
+    else :
+        return np.ma.mean(sc)
 
 
-    return np.ma.median(
-        sigma_clip(data,
-                   sigma=max_sigma,
-                   maxiters=iterations,
-                   cenfunc="mean",
-                   axis=0,
-        ),
-        axis=0
-    )
+def get_sigma_clip_median(data, max_sigma, iterations):
+    """Calculates and returns the median of the sigma-clipped data"""
+
+    return get_sigma_clip_mean(data, max_sigma, iterations, if_median=True)
 
 
-def print_conf_to_canvas(conf, fig):
+def print_conf_to_canvas(conf, fig, y_step=0.1):
     """Print configuration to figure (not used)"""
 
 
     figure=fig
     plt.axis('off')
     y_pos = 1.0
-    y_step = 0.1
     for key, values in conf.items():
         plt.text(0, y_pos, f"{key}: {values}", fontsize=12, va='top')
         y_pos -= y_step
 
     return figure
+
+
+def dump_yaml_to_canvas(yaml_text_list, conf, name_sufix="_conf"):
+    """Dump yaml configuration to pdf"""
+
+
+    pdf_file = str(conf['file'] + str(name_sufix) + ".pdf")
+    c = canvas.Canvas(pdf_file, pagesize=letter)
+
+
+    xt, yt = 40, 750
+    for yamlt in yaml_text_list:
+        for line in yamlt.split("\n"):
+            c.drawString(xt, yt, line)
+            yt -= 15
+
+    c.save()
 
 
 def get_hist_stat(hist_tmp):
@@ -200,7 +241,7 @@ def fit_optical_throughput(optical_throughput_x, optical_throughput_y, fit_conf)
 
     fit.migrad()
 
-    fit_conf_out = get_fit_conf()
+    fit_conf_out = get_fit_conf(conf=None)
 
     fit_conf_out['gauss_a_ampl'] = fit.values["A1"]
     fit_conf_out['gauss_a_x0'] = fit.values["mu1"]
@@ -333,6 +374,7 @@ def generate_distribution_from_data( data, n_points):
 def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, chunk_size, max_sigma, iterations):
     """Function that estimates the uncertainty for a given sigma-clipping configuration."""
 
+
     if conf['if_sample_pdf']:    
         current_error_estimation = []
         for i in np.arange(number_of_trials):
@@ -346,6 +388,7 @@ def get_error_estimation( optical_throughput, conf, fit_conf, number_of_trials, 
                     ),
                     max_sigma,
                     iterations,
+                    if_median=conf['if_median'],
                 )
             )
     else:
@@ -395,10 +438,19 @@ def analyze(conf, rel_err):
     max_sigma  = throughputconf['SigmaClippingAggregator']['max_sigma']
     iterations = throughputconf['SigmaClippingAggregator']['iterations']
 
+    throughputconf_metric = 'mean'
+    if conf['if_mean']:
+        throughputconf_metric = 'mean'
+    elif conf['if_median']:
+        throughputconf_metric = 'median'
+    elif conf['if_mode']:
+        throughputconf_metric = 'mode'
+
     throughputconf_for_canvas = {
         'chunk_size': chunk_size,
         'max_sigma': max_sigma,
         'iterations': iterations,
+        'metric': throughputconf_metric,
         'mean': np.nan,
         'standard_error_of_the_mean': np.nan,
     }
@@ -416,10 +468,11 @@ def analyze(conf, rel_err):
 
     
     if conf['if_fit'] :
-        fit_conf = fit_optical_throughput(optical_throughput_x, optical_throughput_y, get_fit_conf())
+        fit_conf = fit_optical_throughput(optical_throughput_x, optical_throughput_y, get_fit_conf(conf))
     else:
-        fit_conf = get_fit_conf()
+        fit_conf = get_fit_conf(conf)
 
+    fit_conf['initial'] = False
 
     #
     # Estimate the current error
@@ -428,7 +481,7 @@ def analyze(conf, rel_err):
         optical_throughput,
         conf,
         fit_conf,
-        1000,
+        10000,
         chunk_size,
         max_sigma,
         iterations,
@@ -474,7 +527,7 @@ def analyze(conf, rel_err):
 
     
     x = np.linspace(conf['min'],conf['max'], 10*conf['nbins'])
-    y_ini = fit_function_from_conf(get_fit_conf(), x)
+    y_ini = fit_function_from_conf(get_fit_conf(conf), x)
     y_fit = fit_function_from_conf(fit_conf, x)
 
     label_uncertainty_str  ='      A : ' + str(round(uncertainty_fit_A, 3))
@@ -522,6 +575,7 @@ def analyze(conf, rel_err):
 
         
         #fig01=plt.figure(figsize=(15, 10))        
+        axes[1].set_title(r"$\sum_{i = A,B,C} = Gaussian_{i}(A_i,x0_i,\sigma_i) + pedestal $", fontsize=17)
         axes[1].hist(
             optical_throughput, 
             bins=np.linspace(conf['min'],
@@ -532,19 +586,21 @@ def analyze(conf, rel_err):
             edgecolor='black',
             label='data/simulation',
         )        
-        axes[1].scatter(
+        axes[1].plot(
             x,
             y_fit,
             alpha=1.0,
             c='g',
-            s=10,
+            linestyle='-',
+            linewidth=2,
             label='PDF from the fit',
         )        
         label_str = 'Throughput measurements'
         label_str +='\n Muon sample size: ' + str(throughputconf_for_canvas['chunk_size'])
         label_str +='\n sigma: ' + str(throughputconf_for_canvas['max_sigma'])
         label_str +='\n iterations: ' + str(throughputconf_for_canvas['iterations'])
-        label_str +='\n mean: ' + str(round(throughputconf_for_canvas['mean'], 3))
+        label_str +='\n sigma clip metric : ' + str(throughputconf_for_canvas['metric'])
+        label_str +='\n meas.: ' + str(round(throughputconf_for_canvas['mean'], 3))
         label_str +='\n std: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean'],5))
         label_str +='\n rel. err.: ' + str(round(throughputconf_for_canvas['standard_error_of_the_mean']/throughputconf_for_canvas['mean']*100,3))
         label_str +=' %'
@@ -567,6 +623,257 @@ def analyze(conf, rel_err):
         axes[1].tick_params(axis='y', labelsize=13)
         pdf.savefig()
         plt.close()
+
+        #
+        # pull
+        #
+        if conf['if_pull']:
+            pull = (optical_throughput_estimation_current - throughputconf_for_canvas['mean'])/throughputconf_for_canvas['standard_error_of_the_mean']
+
+            pull_label_str = 'Pull '
+            pull_label_str +='\n mean     : ' + str(round(np.mean(pull),5))
+            pull_label_str +='\n sigma    : ' + str(round(np.std(pull),5))
+            pull_label_str +='\n skewness : ' + str(round(skew(pull),5))
+            pull_label_str +='\n kurtosis : ' + str(round(kurtosis(pull),5))
+
+            fig_pull=plt.figure(figsize=(10, 10))
+
+            plt.hist(
+                pull,
+                bins=np.linspace(-5.0,
+                                 5.0,
+                                 100),
+                alpha=0.5,
+                hatch='',
+                edgecolor='black',
+                label=pull_label_str,
+            )
+
+            plt.legend(fontsize=15)
+            plt.xlabel('Optical throughput pull', fontsize=15)
+            plt.xticks(fontsize=15)
+            plt.yticks(fontsize=15)
+
+
+            pdf.savefig()
+            plt.close()
+
+
+        if conf['if_plot_pdf']:
+            fig_pdf=plt.figure(figsize=(10, 10))
+            fit_conf_g_a = copy.deepcopy(fit_conf)
+            fit_conf_g_b = copy.deepcopy(fit_conf)
+            fit_conf_g_c = copy.deepcopy(fit_conf)
+            fit_conf_g_a['gauss_b_ampl'] = 0.0
+            fit_conf_g_a['gauss_c_ampl'] = 0.0
+            fit_conf_g_b['gauss_a_ampl'] = 0.0
+            fit_conf_g_b['gauss_c_ampl'] = 0.0
+            fit_conf_g_c['gauss_a_ampl'] = 0.0
+            fit_conf_g_c['gauss_b_ampl'] = 0.0
+            y_fit_g_a = fit_function_from_conf(fit_conf_g_a, x)
+            y_fit_g_b = fit_function_from_conf(fit_conf_g_b, x)
+            y_fit_g_c = fit_function_from_conf(fit_conf_g_c, x)
+            #
+            label_str_g_a = 'Gauss A'
+            label_str_g_a +='\n Ampl :  ' + str(round(fit_conf['gauss_a_ampl'],5))
+            label_str_g_a +='\n mean : ' + str(round(fit_conf['gauss_a_x0'],5))
+            label_str_g_a +='\n sigma : ' + str(round(fit_conf['gauss_a_sig'],5))
+            label_str_g_a +='\n pedestal : ' + str(round(fit_conf['pedestal'],5))
+            #
+            label_str_g_b = 'Gauss B'
+            label_str_g_b +='\n Ampl :  ' + str(round(fit_conf['gauss_b_ampl'],5))
+            label_str_g_b +='\n mean : ' + str(round(fit_conf['gauss_b_x0'],5))
+            label_str_g_b +='\n sigma : ' + str(round(fit_conf['gauss_b_sig'],5))
+            #
+            label_str_g_c = 'Gauss C'
+            label_str_g_c +='\n Ampl :  ' + str(round(fit_conf['gauss_c_ampl'],5))
+            label_str_g_c +='\n mean : ' + str(round(fit_conf['gauss_c_x0'],5))
+            label_str_g_c +='\n sigma : ' + str(round(fit_conf['gauss_c_sig'],5))
+            #
+            plt.hist(
+                optical_throughput,
+                bins=np.linspace(conf['min'],
+                                 conf['max'],
+                                 conf['nbins']),
+                alpha=0.3,
+                hatch='',
+                edgecolor='black',
+                label='data/simulation',
+            )
+            plt.plot(
+                x,
+                y_fit,
+                alpha=1.0,
+                c='g',
+                linestyle='-',
+                linewidth=2,
+                label='PDF from the fit',
+            )
+            plt.plot(
+                x,
+                y_fit_g_a,
+                alpha=1.0,
+                c='r',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_a,
+            )
+            plt.plot(
+                x,
+                y_fit_g_b,
+                alpha=1.0,
+                c='b',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_b,
+            )
+            plt.plot(
+                x,
+                y_fit_g_c,
+                alpha=1.0,
+                c='m',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_c,
+            )
+            plt.title("Fitted PDF Parameters", fontsize=20)
+            plt.legend(fontsize=15)
+            plt.xlabel('Optical throughput', fontsize=15)
+            plt.xticks(fontsize=15)
+            plt.yticks(fontsize=15)
+            pdf.savefig()
+            plt.close()
+
+
+            fig_pdf_ini=plt.figure(figsize=(10, 10))
+            fit_conf_ini=get_fit_conf(conf)
+            fit_conf_g_a_ini = copy.deepcopy(fit_conf_ini)
+            fit_conf_g_b_ini = copy.deepcopy(fit_conf_ini)
+            fit_conf_g_c_ini = copy.deepcopy(fit_conf_ini)
+            fit_conf_g_a_ini['gauss_b_ampl'] = 0.0
+            fit_conf_g_a_ini['gauss_c_ampl'] = 0.0
+            fit_conf_g_b_ini['gauss_a_ampl'] = 0.0
+            fit_conf_g_b_ini['gauss_c_ampl'] = 0.0
+            fit_conf_g_c_ini['gauss_a_ampl'] = 0.0
+            fit_conf_g_c_ini['gauss_b_ampl'] = 0.0
+            y_fit_ini = fit_function_from_conf(fit_conf_ini, x)
+            y_fit_g_a_ini = fit_function_from_conf(fit_conf_g_a_ini, x)
+            y_fit_g_b_ini = fit_function_from_conf(fit_conf_g_b_ini, x)
+            y_fit_g_c_ini = fit_function_from_conf(fit_conf_g_c_ini, x)
+            #
+            label_str_g_a_ini = 'Gauss A'
+            label_str_g_a_ini +='\n Ampl : ' + str(round(fit_conf_ini['gauss_a_ampl'],5))
+            label_str_g_a_ini +='\n mean : ' + str(round(fit_conf_ini['gauss_a_x0'],5))
+            label_str_g_a_ini +='\n sigma : ' + str(round(fit_conf_ini['gauss_a_sig'],5))
+            label_str_g_a_ini +='\n pedestal : ' + str(round(fit_conf_ini['pedestal'],5))
+            #
+            label_str_g_b_ini = 'Gauss B'
+            label_str_g_b_ini +='\n Ampl : ' + str(round(fit_conf_ini['gauss_b_ampl'],5))
+            label_str_g_b_ini +='\n mean : ' + str(round(fit_conf_ini['gauss_b_x0'],5))
+            label_str_g_b_ini +='\n sigma : ' + str(round(fit_conf_ini['gauss_b_sig'],5))
+            #
+            label_str_g_c_ini = 'Gauss C'
+            label_str_g_c_ini +='\n Ampl : ' + str(round(fit_conf_ini['gauss_c_ampl'],5))
+            label_str_g_c_ini +='\n mean : ' + str(round(fit_conf_ini['gauss_c_x0'],5))
+            label_str_g_c_ini +='\n sigma : ' + str(round(fit_conf_ini['gauss_c_sig'],5))
+            #
+            plt.hist(
+                optical_throughput,
+                bins=np.linspace(conf['min'],
+                                 conf['max'],
+                                 conf['nbins']),
+                alpha=0.3,
+                hatch='',
+                edgecolor='black',
+                label='data/simulation',
+            )
+            plt.plot(
+                x,
+                y_fit_ini,
+                alpha=1.0,
+                c='g',
+                linestyle='-',
+                linewidth=2,
+                label='PDF from the fit',
+            )
+            plt.plot(
+                x,
+                y_fit_g_a_ini,
+                alpha=1.0,
+                c='r',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_a_ini,
+            )
+            plt.plot(
+                x,
+                y_fit_g_b_ini,
+                alpha=1.0,
+                c='b',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_b_ini,
+            )
+            plt.plot(
+                x,
+                y_fit_g_c_ini,
+                alpha=1.0,
+                c='m',
+                linestyle='--',
+                linewidth=3,
+                label=label_str_g_c_ini,
+            )
+            plt.title("Initial PDF parameters", fontsize=20)
+            plt.legend(fontsize=15)
+            plt.xlabel('Optical throughput', fontsize=15)
+            plt.xticks(fontsize=15)
+            plt.yticks(fontsize=15)
+            pdf.savefig()
+            plt.close()
+
+
+        if conf['if_dump_conf']:
+            #
+            # print conf to canvas
+            #
+            fig_conf=plt.figure(figsize=(10, 10))
+            print_conf_to_canvas(conf, fig_conf, y_step = 0.05)
+            pdf.savefig()
+            plt.close()
+
+            #
+            # print throughput conf to canvas
+            #
+            fig_throughput_conf=plt.figure(figsize=(10, 10))
+            print_conf_to_canvas(throughputconf_for_canvas, fig_throughput_conf, y_step = 0.05)
+            pdf.savefig()
+            plt.close()
+
+            #
+            # dump yaml conf to separate pdf
+            #
+            dump_yaml_to_canvas(
+                [
+                    yaml.dump(conf, sort_keys=False),
+                    yaml.dump(throughputconf, sort_keys=False),
+                    json.dumps(throughputconf_for_canvas, indent=2),
+                ],
+                conf,
+                "_conf",
+            )
+
+            #
+            # dump fit conf to separate pdf
+            #
+            dump_yaml_to_canvas(
+                [
+                    json.dumps(get_fit_conf(conf), indent=2),
+                    json.dumps(fit_conf, indent=2),
+                ],
+                conf,
+                "_pdf_fit",
+            )
+
 
     h5file.close()
 

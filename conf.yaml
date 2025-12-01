@@ -6,6 +6,17 @@ file:
 # Configuration file for throughput measurements.
 throughputconf:
   "./throughput_muon_configuration.yaml"
+pdf_fitting_seed_file:
+  "./pdf_fit_ini_file.yaml"
+# If the mean value is calculated on sigma-clipped data (for throughput measurements)
+if_mean:
+  False
+# If the median value is calculated on sigma-clipped data (for throughput measurements)
+if_median:
+  True
+# If the mode value is calculated on sigma-clipped data (for throughput measurements) to be implemented.
+if_mode:
+  False
 # Minimum range value of the throughput with a single muon (histogram).
 min:
   0.1
@@ -30,4 +41,13 @@ if_assume_infinite_statistics:
   False
 # If the user wants to fit the optical throughput to obtain the PDF function for sampling.
 if_fit:
+  True
+# If the user wants to plot pull.
+if_pull:
+  True
+# If the user wants to plot pull.
+if_dump_conf:
+  True
+# If the user wants to plot pull.
+if_plot_pdf:
   True
