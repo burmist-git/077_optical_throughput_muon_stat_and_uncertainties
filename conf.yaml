@@ -1,53 +1,11 @@
 # Input file with the recorded single muon throughput.
 file:
-  - "muon-_0deg_0deg_run000008___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.83.h5"
-  - "muon+_0deg_0deg_run000006___cta-prod6-2156m-LaPalma-mst-nc-dark-ref-degraded-0.83.h5"
-  - "muon+_0deg_0deg_run000011___cta-prod6-2156m-LaPalma-mst-fc-dark-ref-degraded-0.83.h5"
-# Configuration file for throughput measurements.
-throughputconf:
-  "./throughput_muon_configuration.yaml"
-pdf_fitting_seed_file:
-  "./pdf_fit_ini_file.yaml"
-# If the mean value is calculated on sigma-clipped data (for throughput measurements)
-if_mean:
-  False
-# If the median value is calculated on sigma-clipped data (for throughput measurements)
-if_median:
-  True
-# If the mode value is calculated on sigma-clipped data (for throughput measurements) to be implemented.
-if_mode:
-  False
-# Minimum range value of the throughput with a single muon (histogram).
-min:
-  0.1
-# Maximum range value of the throughput with a single muon (histogram).
-max:
-  0.3
-# Number of bins for the throughput histogram.
-nbins:
-  100
-# Plotting range for the relative uncertainty of the optical throughput in %, min value
-rel_uncertainty_range_min:
-  0.0
-# Plotting range for the relative uncertainty of the optical throughput in %, max value
-rel_uncertainty_range_max:
-  3.0
-# In case the user decides to use the PDF for sampling (preferable option for a small number of events (<10^6 events)).
-if_sample_pdf:
-  True
-# Use the input file and sample from it, assuming infinite statistics.
-# In case of false, finite trials are possible until all the events from the files are used.
-if_assume_infinite_statistics:
-  False
-# If the user wants to fit the optical throughput to obtain the PDF function for sampling.
-if_fit:
-  True
-# If the user wants to plot pull.
-if_pull:
-  True
-# If the user wants to plot pull.
-if_dump_conf:
-  True
-# If the user wants to plot pull.
-if_plot_pdf:
-  True
+#  - "./data/muon-_0deg_0deg_run000003___cta-prod6-2147m-Paranal-lst-dark-ref-degraded-0.8.h5"
+#  - "./data/muon-_0deg_0deg_run000001___cta-prod6-2147m-Paranal-mst-nc-dark-ref-degraded-0.8.h5"
+#  - "./data/muon-_0deg_0deg_run000002___cta-prod6-2147m-Paranal-mst-fc-dark-ref-degraded-0.8.h5"
+  - "./data/muon-_20deg_0deg_run000002___cta-prod6-2156m-LaPalma-lst-dark.h5"
+  - "./data/muon-_20deg_0deg_run000002___cta-prod6-2156m-LaPalma-lst-dark-align-deg-20p.h5"
+  - "./data/muon-_20deg_0deg_run000002___cta-prod6-2156m-LaPalma-lst-dark-align-deg-50p.h5"
+# Configuration file for psf measurements.
+psfconf:
+  "./psf_muon_configuration.yaml"

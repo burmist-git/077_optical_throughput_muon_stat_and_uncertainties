@@ -1,0 +1,20 @@
+CalculatePSFWithMuons:
+    # Required settings
+    # Input url should be pointing to an existing file.
+    # It is recommended to supply it as a CLI argument.
+    # input_url: "muon_0deg_0deg_run000001___cta-prod6-2156m-LaPalma-lst-dark-ref-degraded-0.8.h5"
+
+    muonring_radius_fit_min: 1.0
+    muonring_radius_fit_max: 1.17
+    muonring_radius_fit_nbins: 50
+    min_number_of_muon: 20
+    sigma_clipping_sigma: 3
+    sigma_clipping_iterations: 3
+    sigma_clipping_metric: "mean"
+
+
+MuonQualityQuery:
+    quality_criteria:
+      - ["min muonring radius", "muonring_radius >= 1.0"]
+      - ["max muonring radius", "muonring_radius <= 1.17"]
+
